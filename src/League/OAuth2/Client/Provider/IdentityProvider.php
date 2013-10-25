@@ -1,8 +1,10 @@
 <?php namespace League\OAuth2\Client\Provider;
 
 use League\OAuth2\Client\Token\AccessToken as AccessToken;
-use League\OAuth2\Client\Token\Grant\GrantInterface as GrantInterface;
+use League\OAuth2\Client\Grant\GrantInterface as GrantInterface;
+use League\OAuth2\Client\Exception\IDPException as IDPException;
 
+use Guzzle\Http\Client as GuzzleClient;
 
 abstract class IdentityProvider {
 
@@ -16,7 +18,7 @@ abstract class IdentityProvider {
   public $redirectUri = '';
 
   // indicates the provider API access your application is requesting
-  public $scope = array();
+  public $scopes = array();
 
   // the type of data to be returned in the response from the authorization server
   public $responseType = 'code';
@@ -41,11 +43,11 @@ abstract class IdentityProvider {
   public function __construct($options = array())
   {
     // request parameter setting
-    foreach ($options as $option => $values)
+    foreach ($options as $option => $value)
     {
       if (isset($this->{$option}))
       {
-        $this->{$options} = $value;
+        $this->{$option} = $value;
       }
     }
     
@@ -58,7 +60,7 @@ abstract class IdentityProvider {
 
   abstract public function urlAccessToken();
 
-  abstract public function urlUserDetails();
+  abstract public function urlUserDetails(AccessToken $token);
 
   abstract protected function userDetails($response, AccessToken $token);
 
@@ -140,7 +142,15 @@ abstract class IdentityProvider {
         break;
     }
 
-    // requests that receive a 4xx or 5xx response will throw a Guzzle\Http\Exception\BadResponseException
+    // set header
+    $request->setHeader('Accept', 'application/json');
+
+    // use proxy
+    $request->getCurlOptions()->set('CURLOPT_PROXY', '127.0.0.1:7005');
+    $request->getCurlOptions()->set('CURLOPT_PROXYTYPE', 'CURLPROXY_SOCKS5');
+
+    // requests that receive a 4xx or 5xx response will throw 
+    // a Guzzle\Http\Exception\BadResponseException
     try 
     {
       $response = $request->send();
@@ -152,7 +162,8 @@ abstract class IdentityProvider {
       {
         throw new IDPException($message);
       }
-      throw new IDPExcepiton($raw_response); 
+      $body = parse_str($raw_response->getBody(), $body);
+      throw new IDPException($body);
     }
 
     // parse and use a JSON response as an array using the json() method of a response
@@ -171,9 +182,14 @@ abstract class IdentityProvider {
   public function getUserDetails(AccessToken $token)
   {
     // access the user profile API url 
-    $url = $this->urlUserDetails() . 'access_token={$token}';
+    $url = $this->urlUserDetails($token);
 
     $request = $this->http_client->get($url);
+
+    $request->setHeader('Accept', 'application/json');
+    // use proxy
+    $request->getCurlOptions()->set('CURLOPT_PROXY', '127.0.0.1:7005');
+    $request->getCurlOptions()->set('CURLOPT_PROXYTYPE', 'CURLPROXY_SOCKS5');
 
     // requests that receive a 4xx or 5xx response will throw a Guzzle\Http\Exception\BadResponseException
     try
@@ -187,13 +203,13 @@ abstract class IdentityProvider {
       {
         throw new IDPException($message);
       }
-      throw new IDPExcepiton($raw_response); 
+      $body = parse_str($raw_response->getBody(), $body);
+      throw new IDPException($body);
     }
 
     // parse and use a JSON response as an array using the json() method of a response
     $result = $response->json();
-
-    return $this->userDetails($result);
+    return $this->userDetails($result, $token);
   }
 
 
@@ -209,7 +225,7 @@ abstract class IdentityProvider {
   {
     switch ($method) {
       case 'get':
-        $request = $http_client->get($url . '?' . http_build_query($params);
+        $request = $http_client->get($url . '?' . http_build_query($params));
         break;
       case 'post':
         $request = $http_client->post($url, array(), $params);
@@ -226,6 +242,8 @@ abstract class IdentityProvider {
       default:
         throw new \InvalidArgumentException('HTTP method {$method} is not supported');
     }
+
+    $request->setHeader('Accept', 'application/json');
 
     try
     {

@@ -29,15 +29,15 @@ class Linkedin extends IdentityProvider {
   {
     $user = new User;
 
-    $user->uid = $response->id;
-    $user->name = isset($response->firstName) && isset($response->lastName) && $response->firstName && $response->lastName ? $response->firstName.' '.$response->lastName : null;
-    $user->firstName = isset($response->firstName) && $response->firstName ? $response->firstName : null;
-    $user->lastName = isset($response->lastName) && $response->lastName ? $response->lastName : null;
-    $user->email = isset($response->emailAddress) && $response->emailAddress ? $response->emailAddress : null;
-    $user->description = isset($response->headline) && $response->headline ? $response->headline : null;
-    $user->imageUrl = isset($response->pictureUrl) && $response->pictureUrl ? $response->pictureUrl : null;
+    $user->uid = $response['id'];
+    $user->name = isset($response['firstName']) && isset($response['lastName']) && $response['firstName'] && $response['lastName'] ? $response['firstName'].' '.$response['lastName'] : null;
+    $user->firstName = isset($response['firstName']) && $response['firstName'] ? $response['firstName'] : null;
+    $user->lastName = isset($response['lastName']) && $response['lastName'] ? $response['lastName'] : null;
+    $user->email = isset($response['emailAddress']) && $response['emailAddress'] ? $response['emailAddress'] : null;
+    $user->description = isset($response['headline']) && $response['headline'] ? $response['headline'] : null;
+    $user->imageUrl = isset($response['pictureUrl'];) && $response['pictureUrl'] ? $response['pictureUrl'] : null;
     $user->urls = array(
-      'profile' => isset($response->publicProfileUrl) && $response->publicProfileUrl ? $response->publicProfileUrl : null,
+      'profile' => isset($response['publicProfileUrl']) && $response['publicProfileUrl'] ? $response['publicProfileUrl'] : null,
     );
 
     return $user;

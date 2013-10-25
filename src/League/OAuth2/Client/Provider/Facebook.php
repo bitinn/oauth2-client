@@ -18,9 +18,9 @@ class Facebook extends IdentityProvider {
     return 'https://graph.facebook.com/oauth/access_token';
   }
 
-  public function urlUserDetails()
+  public function urlUserDetails(\League\OAuth2\Client\Token\AccessToken $token)
   {
-    return 'https://graph.facebook.com/me?';
+    return 'https://graph.facebook.com/me?access_token=' . $token;
   }
 
   public function userDetails($response, \League\OAuth2\Client\Token\AccessToken $token)
@@ -29,17 +29,17 @@ class Facebook extends IdentityProvider {
 
     $user = new User;
 
-    $user->uid = $response->id;
-    $user->nickname = isset($response->username) && $response->username ? $response->username : null;
-    $user->name = isset($response->name) && $response->name ? $response->name : null;
-    $user->firstName = isset($response->first_name) && $response->first_name ? $response->first_name : null;
-    $user->lastName = isset($response->last_name) && $response->last_name ? $response->last_name : null;
-    $user->email = isset($response->email) && $response->email ? $response->email : null;
-    $user->location = isset($response->hometown->name) && $response->hometown->name ? $response->hometown->name : null;
-    $user->description = isset($response->bio) && $response->bio ? $response->bio : null;
+    $user->uid = $response['id'];
+    $user->nickname = isset($response['username']) && $response['username'] ? $response['username'] : null;
+    $user->name = isset($response['name']) && $response['name'] ? $response['name'] : null;
+    $user->firstName = isset($response['first_name']) && $response['first_name'] ? $response['first_name'] : null;
+    $user->lastName = isset($response['last_name']) && $response['last_name'] ? $response['last_name'] : null;
+    $user->email = isset($response['email']) && $response['email'] ? $response['email'] : null;
+    $user->location = isset($response['hometown']['name']) && $response['hometown']['name'] ? $response['hometown']['name'] : null;
+    $user->description = isset($response['bio']) && $response['bio'] ? $response['bio'] : null;
     $user->imageUrl = isset($imageHeaders['Location']) && $imageHeaders['Location'] ? $imageHeaders['Location'] : null;
     $user->urls = array(
-      'profile' => $response->link,
+      'profile' => $response['link'],
     );
 
     return $user;
