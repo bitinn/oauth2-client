@@ -1,6 +1,4 @@
-<?php
-
-namespace League\OAuth2\Client\Grant;
+<?php namespace League\OAuth2\Client\Grant;
 
 use League\OAuth2\Client\Token\AccessToken as AccessToken;
 
@@ -13,15 +11,16 @@ class Authorizationcode implements GrantInterface {
 
     public function prepRequestParams($defaultParams, $params)
     {
-        if ( ! isset($params['code']) || empty($params['code'])) {
-            throw new \BadMethodCallException('Missing authorization code');
-        }
+      if (!isset($params['code']) || empty($params['code']))
+      {
+        throw new \BadMethodCallException('Missing authorization code');
+      }
 
-        return array_merge($defaultParams, $params);
+      return array_merge($defaultParams, $params);
     }
 
     public function handleResponse($response = array())
     {
-        return new AccessToken($response);
+      return new AccessToken($response);
     }
 }

@@ -1,184 +1,270 @@
-<?php
+<?php namespace League\OAuth2\Client\Provider;
 
-namespace League\OAuth2\Client\Provider;
-
-use Guzzle\Service\Client as GuzzleClient;
 use League\OAuth2\Client\Token\AccessToken as AccessToken;
-use League\OAuth2\Client\Token\Authorize as AuthorizeToken;
+use League\OAuth2\Client\Grant\GrantInterface as GrantInterface;
 use League\OAuth2\Client\Exception\IDPException as IDPException;
+
+use Guzzle\Http\Client as GuzzleClient;
 
 abstract class IdentityProvider {
 
-    public $clientId = '';
+  // app id
+  public $clientId = '';
 
-    public $clientSecret = '';
+  // client secret
+  public $clientSecret = '';
 
-    public $redirectUri = '';
+  // URL in your app where users will be sent after authorization
+  public $redirectUri = '';
 
-    public $name;
+  // indicates the provider API access your application is requesting
+  public $scopes = array();
 
-    public $uidKey = 'uid';
+  // the type of data to be returned in the response from the authorization server
+  public $responseType = 'code';
 
-    public $scopes = array();
+  // request method(default 'post')
+  public $method = 'post';
 
-    public $method = 'post';
+  public $name;
 
-    public $scopeSeperator = ',';
+  public $scopeSeperator = ',';
 
-    public $responseType = 'json';
+  // http client
+  protected $http_client;
 
-    protected $cachedUserDetailsResponse;
 
-    public function __construct($options = array())
+  /**
+   * Construct do opitons initialization
+   *
+   * @param  array  OAuth request parameters(options)
+   * 
+   */
+  public function __construct($options = array())
+  {
+    // request parameter setting
+    foreach ($options as $option => $value)
     {
-        foreach ($options as $option => $value) {
-            if (isset($this->{$option})) {
-                $this->{$option} = $value;
-            }
-        }
+      if (isset($this->{$option}))
+      {
+        $this->{$option} = $value;
+      }
+    }
+    
+    // use Guzzle HTTP client  
+    $this->http_client = new GuzzleClient();
+  }
+
+
+  abstract public function urlAuthorize();
+
+  abstract public function urlAccessToken();
+
+  abstract public function urlUserDetails(AccessToken $token);
+
+  abstract protected function userDetails($response, AccessToken $token);
+
+
+  /**
+   * OAuth authorization
+   *
+   * @param   array   authorization request options
+   * @return  void 
+   */
+  public function authorize($options = array())
+  {
+    // an unguessable random string
+    $state = md5(uniqid(rand(), true));
+
+    // used to protect against cross-site request forgery attacks 
+    setcookie($this->name . '_authorize_state', $state);
+
+    $params = array(
+      'client_id' => $this->clientId,
+      'redirect_uri' => $this->redirectUri,
+      'state' => $state,
+      'scope' => is_array($this->scopes) ? implode($this->scopeSeperator, $this->scopes) : $this->scopes,
+      'response_type' => isset($options['response_type']) ? $options['response_type'] : $this->responseType,
+    );
+
+    // google force-recheck this option
+    if (isset($this->approval_prompt))
+    {
+      $params['approval_prompt'] = $this->approval_prompt;
     }
 
-    abstract public function urlAuthorize();
-
-    abstract public function urlAccessToken();
-
-    abstract public function urlUserDetails(\League\OAuth2\Client\Token\AccessToken $token);
-
-    abstract public function userDetails($response, \League\OAuth2\Client\Token\AccessToken $token);
-
-    public function getAuthorizationUrl($options = array())
+    // google need this option to obtain refersh token
+    if (isset($this->access_type))
     {
-        $state = md5(uniqid(rand(), true));
-        setcookie($this->name.'_authorize_state', $state);
-
-        $params = array(
-            'client_id' => $this->clientId,
-            'redirect_uri' => $this->redirectUri,
-            'state' => $state,
-            'scope' => is_array($this->scopes) ? implode($this->scopeSeperator, $this->scopes) : $this->scopes,
-            'response_type' => isset($options['response_type']) ? $options['response_type'] : 'code',
-            'approval_prompt' => 'force' // - google force-recheck
-        );
-
-        return $this->urlAuthorize().'?'.http_build_query($params);
+      $params['access_type'] = $this->access_type;
     }
 
-    public function authorize($options = array())
+    // google provide this options as a hit to the authentication server
+    if (isset($this->login_hint))
     {
-        header('Location: ' . $this->getAuthorizationUrl($options));
-        exit;
+      $param['login_hint'] = $this->login_hint;
     }
 
-    public function getAccessToken($grant = 'authorization_code', $params = array())
-    {
-        if (is_string($grant)) {
-            $grant = 'League\\OAuth2\\Client\\Grant\\'.ucfirst(str_replace('_', '', $grant));
-            if ( ! class_exists($grant)) {
-                throw new \InvalidArgumentException('Unknown grant "'.$grant.'"');
-            }
-            $grant = new $grant;
-        } elseif ( ! $grant instanceof Grant\GrantInterface) {
-            throw new \InvalidArgumentException($grant.' is not an instance of League\OAuth2\Client\Grant\GrantInterface');
-        }
+    $url = $this->urlAuthorize() . '?' . http_build_query($params);
 
-        $defaultParams = array(
-            'client_id'     => $this->clientId,
-            'client_secret' => $this->clientSecret,
-            'redirect_uri'  => $this->redirectUri,
-            'grant_type'    => $grant,
-        );
+    // need user grant
+    header('Location: ' . $url);
+    exit;
+  }
 
-        $requestParams = $grant->prepRequestParams($defaultParams, $params);
 
-        try {
-            switch ($this->method) {
-                case 'get':
-                    $client = new GuzzleClient($this->urlAccessToken() . '?' . http_build_query($requestParams));
-                    $request = $client->send();
-                    $response = $request->getBody();
-                    break;
-                case 'post':
-                    $client = new GuzzleClient($this->urlAccessToken());
-                    $request = $client->post(null, null, $requestParams)->send();
-                    $response = $request->getBody();
-                    break;
-            }
-        } catch (\Guzzle\Http\Exception\BadResponseException $e) {
-            $raw_response = explode("\n", $e->getResponse());
-            $response = end($raw_response);
-        }
+  /**
+   * Get access token
+   *
+   * @param   Object   a GrantInterface implementer 
+   * @param   array    request access token options
+   * @return  object 
+   */
+  public function getAccessToken(GrantInterface $grant, $params = array())
+  {
+    $defaultParams = array(
+      'client_id'     => $this->clientId,
+      'client_secret' => $this->clientSecret,
+      'redirect_uri'  => $this->redirectUri,
+      'grant_type'    => $grant,
+    );
 
-        switch ($this->responseType) {
-            case 'json':
-                $result = json_decode($response, true);
-                break;
-            case 'string':
-                parse_str($response, $result);
-                break;
-        }
+    // prepare request parameters
+    $requestParams = $grant->prepRequestParams($defaultParams, $params);
 
-        if (isset($result['error']) && ! empty($result['error'])) {
-            throw new IDPException($result);
-        }
-
-        return $grant->handleResponse($result);
+    // request access token(json format)
+    switch ($this->method) {
+      case 'get':
+        $request = $this->http_client->get($this->urlAccessToken() . '?' . http_build_query($requestParams));
+        break;
+      case 'post':
+        $request = $this->http_client->post($this->urlAccessToken(), array(), $requestParams);
+        break;
     }
 
-    public function getUserDetails(AccessToken $token, $force = false)
-    {
-        $response = $this->fetchUserDetails($token);
+    // set header
+    $request->setHeader('Accept', 'application/json');
 
-        return $this->userDetails(json_decode($response), $token);
+    // use proxy
+    $request->getCurlOptions()->set('CURLOPT_PROXY', '127.0.0.1:7005');
+    $request->getCurlOptions()->set('CURLOPT_PROXYTYPE', 'CURLPROXY_SOCKS5');
+
+    // requests that receive a 4xx or 5xx response will throw 
+    // a Guzzle\Http\Exception\BadResponseException
+    try 
+    {
+      $response = $request->send();
+    }
+    catch (\Guzzle\Http\Exception\BadResponseException $e)
+    {
+      $raw_response = $e->getResponse();
+      if (($message = json_decode($raw_response->getBody())) !== NULL)
+      {
+        throw new IDPException($message);
+      }
+      $body = parse_str($raw_response->getBody(), $body);
+      throw new IDPException($body);
     }
 
-    public function getUserUid(AccessToken $token, $force = false)
-    {
-        $response = $this->fetchUserDetails($token, $force);
+    // parse and use a JSON response as an array using the json() method of a response
+    $result = $response->json();
 
-        return $this->userUid(json_decode($response), $token);
+   return $grant->handleResponse($result); 
+  }
+
+
+  /**
+   * Get use detail profile
+   *
+   * @param   string  access token
+   * @return  array   user profile
+   */
+  public function getUserDetails(AccessToken $token)
+  {
+    // access the user profile API url 
+    $url = $this->urlUserDetails($token);
+
+    $request = $this->http_client->get($url);
+
+    $request->setHeader('Accept', 'application/json');
+    // use proxy
+    $request->getCurlOptions()->set('CURLOPT_PROXY', '127.0.0.1:7005');
+    $request->getCurlOptions()->set('CURLOPT_PROXYTYPE', 'CURLPROXY_SOCKS5');
+
+    // requests that receive a 4xx or 5xx response will throw a Guzzle\Http\Exception\BadResponseException
+    try
+    {
+      $response = $request->send();
+    }
+    catch (\Guzzle\Http\Exception\BadResponseException $e)
+    {
+      $raw_response = $e->getResponse();
+      if (($message = json_decode($raw_response->getBody())) !== NULL)
+      {
+        throw new IDPException($message);
+      }
+      $body = parse_str($raw_response->getBody(), $body);
+      throw new IDPException($body);
     }
 
-    public function getUserEmail(AccessToken $token, $force = false)
-    {
-        $response = $this->fetchUserDetails($token, $force);
+    // parse and use a JSON response as an array using the json() method of a response
+    $result = $response->json();
+    return $this->userDetails($result, $token);
+  }
 
-        return $this->userEmail(json_decode($response), $token);
+
+  /**
+   * A basic all api action(only supporting RESTful api)
+   *
+   * @param   string  http method
+   * @param   string  request url
+   * @param   string  request parameters
+   * @return  array   response(convert json to array)
+   */
+  public function callApi($method, $url, $params)
+  {
+    switch ($method) {
+      case 'get':
+        $request = $http_client->get($url . '?' . http_build_query($params));
+        break;
+      case 'post':
+        $request = $http_client->post($url, array(), $params);
+        break;
+      case 'put':
+        $request = $http_client->put($url, array(), $params);
+        break;
+      case 'delete':
+        $request = $http_client->delete($url, array(), $params);
+        break;
+      case 'patch':
+        $request = $http_client->patch($url, array(), $params);
+        break;
+      default:
+        throw new \InvalidArgumentException('HTTP method {$method} is not supported');
     }
 
-    public function getUserScreenName(AccessToken $token, $force = false)
-    {
-        $response = $this->fetchUserDetails($token, $force);
+    $request->setHeader('Accept', 'application/json');
 
-        return $this->userScreenName(json_decode($response), $token);
+    try
+    {
+      $response = $request->send();
+    }
+    catch (\Guzzle\Http\Exception\BadResponseException $e)
+    {
+      $raw_response = $e->getResponse();
+      if (($result = json_decode($raw_response->getBody())) === NULL)
+      {
+        $result = array();
+        $result['status'] = $raw_response->getStatusCode();
+        $result['body'] = $raw_response->getBody();
+      }
     }
 
-    protected function fetchUserDetails(AccessToken $token, $force = false)
+    if (!isset($result))
     {
-        if ( ! $this->cachedUserDetailsResponse || $force == true) {
-
-            $url = $this->urlUserDetails($token);
-
-            try {
-
-                $client = new GuzzleClient($url);
-                $request = $client->get()->send();
-                $response = $request->getBody();
-                $this->cachedUserDetailsResponse = $response;
-
-            } catch (\Guzzle\Http\Exception\BadResponseException $e) {
-
-                //get reponse with header
-                $raw_response = end(explode("\n", $e->getResponse()));
-
-                //convert error message to array if possible
-                $response = is_string($raw_response) ? json_decode($raw_response) : $raw_response;
-
-                throw new IDPException($response);
-
-            }
-        }
-
-        return $this->cachedUserDetailsResponse;
+      $result = $response->json();
     }
 
+    return $result;
+  }
 }

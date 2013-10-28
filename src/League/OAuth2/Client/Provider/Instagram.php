@@ -1,38 +1,37 @@
-<?php
+<?php namespace League\OAuth2\Client\Provider;
 
-namespace League\OAuth2\Client\Provider;
+class Instagram extends IdentityProvider {
 
-class Instagram extends IdentityProvider
-{
-    public $scopes = array('basic');
-    public $responseType = 'json';
+  public $scopes = array('basic');
 
-    public function urlAuthorize()
-    {
-        return 'https://api.instagram.com/oauth/authorize';
-    }
+  public $name = "instagram";
 
-    public function urlAccessToken()
-    {
-        return 'https://api.instagram.com/oauth/access_token';
-    }
+  public function urlAuthorize()
+  {
+    return 'https://api.instagram.com/oauth/authorize';
+  }
 
-    public function urlUserDetails(\League\OAuth2\Client\Token\AccessToken $token)
-    {
-        return 'https://api.instagram.com/v1/users/self?access_token='.$token;
-    }
+  public function urlAccessToken()
+  {
+    return 'https://api.instagram.com/oauth/access_token';
+  }
 
-    public function userDetails($response, \League\OAuth2\Client\Token\AccessToken $token)
-    {
+  public function urlUserDetails(\League\OAuth2\Client\Token\AccessToken $token)
+  {
+    return 'https://api.instagram.com/v1/users/self?access_token='.$token;
+  }
 
-        $user = new User;
+  public function userDetails($response, \League\OAuth2\Client\Token\AccessToken $token)
+  {
 
-        $user->uid = $response->data->id;
-        $user->nickname = $response->data->username;
-        $user->name = $response->data->full_name;
-        $user->description = isset($response->data->bio) ? $response->data->bio : null;
-        $user->imageUrl = $response->data->profile_picture;
+    $user = new User;
 
-        return $user;
-    }
+    $user->uid = $response['data']['id'];
+    $user->nickname = $response['data']['username'];
+    $user->name = $response['data']['full_name'];
+    $user->description = isset($response['data']['bio']) ? $response['data']['bio'] : null;
+    $user->imageUrl = $response['data']['profile_picture'];
+
+    return $user;
+  }
 }
