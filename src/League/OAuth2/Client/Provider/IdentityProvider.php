@@ -133,7 +133,7 @@ abstract class IdentityProvider
                 break;
         }
 
-        if (is_array($response) && isset($response['error'])) {
+        if (is_array($response) && (isset($response['error']) || isset($response['message'])) {
             throw new IDPException($response);
         }
 

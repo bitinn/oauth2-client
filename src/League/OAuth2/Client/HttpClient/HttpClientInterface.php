@@ -18,7 +18,6 @@ interface HttpClientInterface {
      * @param  string  $uri      Uri to send HTTP request to 
      * @param  array   $headers  Array of Headers|null
      * @param  array   $options  Vendor specific options to activate specific features
-     * @throws  HttpException
      * @return  mixed
      */
     public function get($uri = null, $headers = null, array $options = array());
@@ -31,7 +30,6 @@ interface HttpClientInterface {
      * @param  array   $headers   Array of Headers|null
      * @param  array   $postBody  Array of POST body|null
      * @param  array   $options   Vendor specific options to activate specific features
-     * @throws  HttpException
      * @return  mixed
      */
     public function post($uri = null, $headers = null, $postBody = null, array $options = array());
