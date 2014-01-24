@@ -29,6 +29,10 @@ class GuzzleHttpClient implements HttpClientInterface {
             $result['code'] = $response->getStatusCode();
 
             return $result;
+        } catch (Guzzle\Http\Exception\CurlException $e) {
+            $result['message'] = 'Curl Exception';
+
+            return $result;
         }
 
         $result = $response->getBody(true);
@@ -52,6 +56,10 @@ class GuzzleHttpClient implements HttpClientInterface {
             $result['code'] = $response->getStatusCode();
 
             return $result; 
+        } catch (Guzzle\Http\Exception\CurlException $e) {
+            $result['message'] = 'Curl Exception';
+
+            return $result;
         }
 
         $result = $response->getBody(true);
