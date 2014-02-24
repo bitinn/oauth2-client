@@ -93,7 +93,7 @@ abstract class IdentityProvider
             $param['login_hint'] = $this->login_hint;
         }
 
-        return $this->urlAuthorize().'?'.http_build_query($params);
+        return $this->urlAuthorize().'?'.http_build_query($params,'','&',PHP_QUERY_RFC1738);
     }
 
     public function authorize($options = array())
@@ -133,7 +133,7 @@ abstract class IdentityProvider
                 break;
         }
 
-        if (is_array($response) && isset($response['error'])) {
+        if (is_array($response) && (isset($response['error']) || isset($response['message']))) {
             throw new IDPException($response);
         }
 
@@ -184,7 +184,7 @@ abstract class IdentityProvider
             $url = $this->urlUserDetails($token);
 
             $response = $this->httpClient->get($url);
-            if (is_array($response) && isset($response['error'])) {
+            if (is_array($response) && (isset($response['error']) || isset($response['message']))) {
                 throw new IDPException($response);
             }
             else {
