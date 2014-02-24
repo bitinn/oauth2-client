@@ -13,7 +13,8 @@ class ProviderTest extends PHPUnit_Framework_TestCase {
         $this->stub = $this->getMockForAbstractClass(
             'League\OAuth2\Client\Provider\IdentityProvider',
             array($this->httpClientMock, $this->prepareOptions())
-        ); }
+		);
+	}
 
 
     public function testGetAuthorizationUrlWithEmptyOptions()
